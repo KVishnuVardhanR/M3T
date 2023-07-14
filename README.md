@@ -21,7 +21,7 @@ importing necessary libraries
 > import torch.nn.functional as F
 
 # 3D CNN block in M3T:
-The authors mentioned that the shape of the output must match the shape of the input, 
+The authors mentioned that the shape of the output must match the shape of the input, the length, width and height of the output should be same as input
 
 where I ∈ R^L×W×H , D3d : R^LxWxH -> R^C3xLxWxH
 
