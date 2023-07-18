@@ -10,6 +10,17 @@ Alzheimer’s : A type of brain disorder that causes problems with memory, think
 ![image](https://github.com/KVishnuVardhanR/M3T-/assets/33771427/60c4a501-86d3-41e7-9ddd-138bc4db6284)
 
 # Let's start coding each part of the architecture
+
+**The model's architecture is divided into 3 parts:**
+
+**1) 3D CNN block part**
+
+**2) Extraction of Multi-plane, Multi slice images and  2D CNN block**
+
+**3) Transformer encoder with classification head**
+
+
+
 importing necessary libraries
 >```
 > import torch
@@ -89,8 +100,9 @@ However, the authors did not mention what method they have used to achieve the a
 >
 >    def forward(self, input_tensor):
 >        # Extract coronal features
->        coronal_slices = torch.split(input_tensor, 1, dim=2) # This gives us a tuple of length 128, where each element has shape (batch_size, channels, 1, length, width) 
->        Ecor = torch.cat(coronal_slices, dim=2) # lets concatenate along dimension 2 to get the desired output shape for Ecor: R^C3d×N×W×H.
+>        # The following code gives us a tuple of length 128, where each element has shape (batch_size, channels, 1, length, width)
+>        coronal_slices = torch.split(input_tensor, 1, dim=2)         # Now we have 128 coronal images stored as tuple
+>        Ecor = torch.cat(coronal_slices, dim=2)                      # lets concatenate along dimension 2 to get the desired output shape for Ecor: R^C3d×N×W×H.
 >        return Ecor
 
 
@@ -144,8 +156,197 @@ Now after extracting [Ecor, Esag and Eax] = E, **The authors calculated multi-pl
 >        # 2D CNN block
 >        # perform global average pooling using pre-trained ResNet50 network
 >        # D2d : R(3N×C3d×L×L) → R(3N×C2d)    (C2d is out channel size of 2D CNN)
->        pooled_feat = self.gap_layer(S)                                           #  Eq. (4)
+>        pooled_feat = self.gap_layer(S).squeeze(dim=3).squeeze(dim=3)             #  Eq. (4)
 >
 >        # Non-Linear Projection part T ∈ R(3N×d)     (d is projection dimension)
->        output_tensor = self.non_linear_proj(pooled_feat.squeeze(dim=3).squeeze(dim=3)) # remove the extra dimensions to get the desired output shape
+>        output_tensor = self.non_linear_proj(pooled_feat)                         # Now we have the desired output shape
 >        return output_tensor
+
+
+
+# Transformer encoder with classification head in M3T
+After calculating the multi-plane and multi-slice image tokens, position and plane embedding tokens are added to the image tokens from non-linear projection layer. Lets check out all the tokens that we need.
+
+**Position Embedding Tokens (Ppos):** The learnable one-dimensional tokens are applied to the embedding scheme to retain positional information.
+
+**Plane Embedding Tokens (Ppln):** The learnable one-dimensional tokens are appliedto give information indicating which plane these tokens belong.
+
+**CLS Token:** A learnable classification token is prepended to these tokens, similar to ViT class token.
+
+**Plane separation tokens:** A learnable separation token are also appended between each plane token and the end of the tokens, similar to BERT sep token.
+
+Lets implement these:
+>```
+>class EmbeddingLayer(nn.Module):
+>    '''
+>    After calculating the multi-plane and multi-slice image tokens, position and 
+>    plane embedding tokens are added to the image tokens from non-linear projection layer.
+>    Ref. 3.5. Position and Plane Embedding Block
+>    emb_size = d = 256, total_tokens = 3S = 3*128 = 384
+>    where d = attention dimension and S = input size
+>    '''
+>    def __init__(self, emb_size: int = 256, total_tokens: int = 384):
+>        super(EmbeddingLayer, self).__init__()
+>
+>        # zcls ∈ R(d)
+>        self.cls_token = nn.Parameter(torch.randn(1,1, emb_size))
+>
+>        # zsep ∈ R(d)
+>        self.sep_token = nn.Parameter(torch.randn(1,1, emb_size))
+>
+>        # Ppos ∈ R((3S+4)×d)
+>        self.plane = nn.Parameter(torch.randn(total_tokens + 4, emb_size))
+>
+>        # Ppos ∈ R((3S+4)×d)
+>        self.positions = nn.Parameter(torch.randn(total_tokens + 4, emb_size))
+>
+>    def forward(self, input_tensor):
+>        b, _, _ = input_tensor.shape
+>        cls_tokens = repeat(self.cls_token, '() n e -> b n e', b=b)
+>        sep_token = repeat(self.sep_token, '() n e -> b n e', b=b)
+>
+>        x = torch.cat((cls_tokens, input_tensor[:, :128, :], sep_token, input_tensor[:, 128:256, :], sep_token, input_tensor[:, 256:, :], sep_token), dim=1)
+>
+>        x += self.plane
+>
+>        x += self.positions
+>        
+>        # the above represents Eq. (6)
+>        return x
+
+
+**Now comes the Transformer Block, if you have implemented ViT's, then it's a cake for you because its the same with little changes in dimensions**
+
+**According to Implementation details in the paper, the authors mentioned that the number 256 is same with projection dimension (attention dimension) d used in the transformer. The number of transformer layers is 8. The hidden size and MLP size are 768, and the number of heads = 8.**
+
+Lets keep that in mind, I will not explain each part of the transformer encoder, but you can check out the following link to understand in detail if needed: 
+https://github.com/FrancescoSaverioZuppichini/ViT
+
+>```
+>class MultiHeadAttention(nn.Module):
+>    def __init__(self, emb_size: int = 256, num_heads: int = 8, dropout: float = 0):
+>        super().__init__()
+>        self.emb_size = emb_size
+>        self.num_heads = num_heads
+>        # fuse the queries, keys and values in one matrix
+>        self.qkv = nn.Linear(emb_size, emb_size * 3)
+>        self.att_drop = nn.Dropout(dropout)
+>        self.projection = nn.Linear(emb_size, emb_size)
+>
+>    def forward(self, x : Tensor, mask: Tensor = None) -> Tensor:
+>        # split keys, queries and values in num_heads
+>        qkv = rearrange(self.qkv(x), "b n (h d qkv) -> (qkv) b h n d", h=self.num_heads, qkv=3)
+>        queries, keys, values = qkv[0], qkv[1], qkv[2]
+>        # sum up over the last axis
+>        energy = torch.einsum('bhqd, bhkd -> bhqk', queries, keys) # batch, num_heads, query_len, key_len
+>        if mask is not None:
+>            fill_value = torch.finfo(torch.float32).min
+>            energy.mask_fill(~mask, fill_value)
+>
+>        scaling = self.emb_size ** (1/2)
+>        att = F.softmax(energy, dim=-1) / scaling
+>        att = self.att_drop(att)
+>        # sum up over the third axis
+>        out = torch.einsum('bhal, bhlv -> bhav ', att, values)
+>        out = rearrange(out, "b h n d -> b n (h d)")
+>        out = self.projection(out)
+>        return out
+>
+>
+>class ResidualAdd(nn.Module):
+>    def __init__(self, fn):
+>        super().__init__()
+>        self.fn = fn
+>
+>    def forward(self, x, **kwargs):
+>        res = x
+>        x = self.fn(x, **kwargs)
+>        x += res
+>        return x
+>
+>
+>class FeedForwardBlock(nn.Sequential):
+>    def __init__(self, emb_size: int, expansion: int = 3, drop_p: float = 0.):
+>        super().__init__(
+>            nn.Linear(emb_size, expansion * emb_size),
+>            nn.GELU(),
+>            nn.Dropout(drop_p),
+>            nn.Linear(expansion * emb_size, emb_size),
+>        )
+>
+>
+>
+>class TransformerEncoderBlock(nn.Sequential):
+>   '''
+>    We keep the forward expansion as 3, since all the hidden and MLP sizes must be 768 in the transformer encoder
+>    Ref. 3.6. Transformer Block
+>    '''
+>    def __init__(self,
+>                 emb_size: int = 256,
+>                 drop_p: float = 0.,
+>                 forward_expansion: int = 3,
+>                 forward_drop_p: float = 0.,
+>                 ** kwargs):
+>        super().__init__(
+>            # Zk = MSA(LN(Zk)) + Zk                                      Eq. (7)
+>            ResidualAdd(nn.Sequential(
+>                # Layer Normalization (LN)
+>                nn.LayerNorm(emb_size),
+>
+>                # Multi Head Self attention (MSA)
+>                MultiHeadAttention(emb_size, **kwargs),
+>                nn.Dropout(drop_p)
+>            )),
+>            # Zk+1 = MLP(LN(Zk))+ Zk                                     Eq. (8)
+>            ResidualAdd(nn.Sequential(
+>                # MLP blocks
+>                nn.LayerNorm(emb_size),
+>                FeedForwardBlock(
+>                    emb_size, expansion=forward_expansion, drop_p=forward_drop_p),
+>                nn.Dropout(drop_p)
+>            )
+>            ))
+>
+>
+>class TransformerEncoder(nn.Sequential):
+>    '''
+>    The number 256 is same with projection dimension (attention dimension) d used in the transformer.
+>    The number of transformer layers is 8. The hidden size and MLP size are 768, 
+>    and the number of heads = 8.
+>    '''
+>    def __init__(self, depth: int = 8, **kwargs):
+>        super().__init__(*[TransformerEncoderBlock(**kwargs) for _ in range(depth)])
+>
+>
+>class ClassificationHead(nn.Sequential):
+>    '''
+>    a linear classifier is used to classify the encoded input based on the MLP 
+>    head: ZKcls ∈ R(d). There are two final categorization classes: NC and AD.
+>    '''
+>    def __init__(self, emb_size: int = 256, n_classes: int = 2):
+>        super().__init__(
+>            Reduce('b n e -> b e', reduction='mean'),
+>            nn.LayerNorm(emb_size),
+>            nn.Linear(emb_size, n_classes))
+
+
+**We have covered each and every part in the M3T. Lets give a final touch by calling each part:**
+>```
+>class M3T(nn.Sequential):
+>    def __init__(self,
+>                in_channels: int = 1,
+>                out_channels: int = 32,
+>                emb_size: int = 256,
+>                depth: int = 8,
+>                n_classes: int = 2,
+>                **kwargs):
+>        super().__init__(
+>            CNN3DBlock(in_channels, out_channels),
+>            MultiPlane_MultiSlice_Extract_Project(out_channels),
+>            EmbeddingLayer(emb_size=emb_size),
+>            TransformerEncoder(depth, emb_size=emb_size, **kwargs),
+>            ClassificationHead(emb_size, n_classes)
+>        )
+
+You can find the complete implementation of M3T in M3T.py file. Now lets test the M3T using ```torchsummary``` to check the number of parameters
+
