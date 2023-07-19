@@ -5,10 +5,10 @@ To develop a novel deep learning method to classify Alzheimer’s disease, Resea
 https://openaccess.thecvf.com/content/CVPR2022/papers/Jang_M3T_Three-Dimensional_Medical_Image_Classifier_Using_Multi-Plane_and_Multi-Slice_Transformer_CVPR_2022_paper.pdf
 
 Alzheimer’s : A type of brain disorder that causes problems with memory, thinking and behaviour
-![image](https://github.com/KVishnuVardhanR/M3T-/assets/33771427/c74b2d1d-bb67-4bc9-8310-a83b742af9f0)
+![image](Screenshots/1.png)
 
 # M3T Network Architecture:
-![image](https://github.com/KVishnuVardhanR/M3T-/assets/33771427/60c4a501-86d3-41e7-9ddd-138bc4db6284)
+![image](Screenshots/2.png)
 
 # Let's start coding each part of the architecture
 
@@ -38,7 +38,8 @@ The authors mentioned that the shape of the output must match the shape of the i
 where I ∈ R^L×W×H , D3d : R^LxWxH -> R^C3xLxWxH
 
 X = D3d(I), X ∈ R^C3d×L×W×H
-![image](https://github.com/KVishnuVardhanR/M3T-/assets/33771427/1ad141da-6fd1-4aae-b669-0461fdab7a71)
+
+![image](Screenshots/3.png)
 
 >```
 >class CNN3DBlock(nn.Module):
@@ -85,6 +86,13 @@ X = D3d(I), X ∈ R^C3d×L×W×H
 # Extraction of Multi-plane, Multi slice images and  2D CNN block in M3T:
 After using 3D CNN block into the input image, the multi-plane and multi-slice image features is extracted from the 3D representation features X. The features are calculated from the extraction operator E. The
 operator consists of coronal features extractor Ecor : R^C3d×L×W×H → R^C3d×N×W×H.
+
+<table>
+  <tr>
+    <td><img src="Screenshots/4.png" alt="Image 1"></td>
+    <td><img src="Screenshots/5.png" alt="Image 2"></td>
+  </tr>
+</table>
 
 However, the authors did not mention what method they have used to achieve the above. This can be achieved by using splitting across the dimension and concatenation:
 >```
@@ -176,7 +184,10 @@ After calculating the multi-plane and multi-slice image tokens, position and pla
 
 **Plane separation tokens:** A learnable separation token are also appended between each plane token and the end of the tokens, similar to BERT sep token.
 
-Lets implement these:
+
+![image](Screenshots/6.png)
+
+Lets implement them now:
 >```
 >class EmbeddingLayer(nn.Module):
 >     '''
@@ -219,6 +230,10 @@ Lets implement these:
 **Now comes the Transformer Block, if you have implemented ViT's, then it's a cake for you because its the same with little changes in dimensions**
 
 **According to Implementation details in the paper, the authors mentioned that the number 256 is same with projection dimension (attention dimension) d used in the transformer. The number of transformer layers is 8. The hidden size and MLP size are 768, and the number of heads = 8.**
+
+
+![image](Screenshots/7.png)
+
 
 Lets keep that in mind, I will not explain each part of the transformer encoder, but you can check out the following link to understand in detail if needed: 
 https://github.com/FrancescoSaverioZuppichini/ViT
