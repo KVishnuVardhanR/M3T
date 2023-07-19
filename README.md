@@ -516,7 +516,7 @@ You can find the complete implementation of M3T in M3T.py file. Now lets test th
 
 We can see that the number of parameters that I got here is different from the ones that was mentioned in the paper. I have got **5.5M trainable parameters** but in the paper they said that they have received **29.12M trainable parameters**
 
-if we change the **Embedding dimension d = 768 instead of 256** and keep **forward expansion in transformer encoder as 1**, and changing the hidden size in the **non linear projection block from (512, 256) to (512, 768).** I'm getting nearly **28.91M trainable parameters** with torch summary 
+When I change the **Embedding dimension d = 768 instead of 256** and keep **forward expansion in transformer encoder as 1**, and changing the hidden size in the **non linear projection block from (512, 256) to (512, 768).** I'm getting nearly **28.91M trainable parameters** with torch summary 
 
 # Conclusions
 Here, we have seen how to implement M3T in a scalable and customizable way. But, I have followed each and every step in detail when implementing it, However, I have mailed the authors for clarification, but haven't got any responses.  
