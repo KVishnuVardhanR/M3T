@@ -1,7 +1,8 @@
 # M3T- three-dimensional Medical image classifier using Multi-plane and Multi-slice Transformer
 
 # Overview
-To develop a novel deep learning method to classify Alzheimer’s disease
+To develop a novel deep learning method to classify Alzheimer’s disease, Research paper can be accessed from the following link:
+https://openaccess.thecvf.com/content/CVPR2022/papers/Jang_M3T_Three-Dimensional_Medical_Image_Classifier_Using_Multi-Plane_and_Multi-Slice_Transformer_CVPR_2022_paper.pdf
 
 Alzheimer’s : A type of brain disorder that causes problems with memory, thinking and behaviour
 ![image](https://github.com/KVishnuVardhanR/M3T-/assets/33771427/c74b2d1d-bb67-4bc9-8310-a83b742af9f0)
