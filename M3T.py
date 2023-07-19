@@ -5,6 +5,7 @@ import torchvision.models as models
 from einops import rearrange, reduce, repeat
 from einops.layers.torch import Rearrange, Reduce
 import torch.nn.functional as F
+from torchsummary import summary
 
 class CNN3DBlock(nn.Module):
     '''
@@ -18,7 +19,7 @@ class CNN3DBlock(nn.Module):
 
         # 5 x 5 x 5 3D CNN
         self.conv1 = nn.Conv3d(in_channels, out_channels, kernel_size=5, 
-                               stride=1, padding=2)
+                              stride=1, padding=2)
         # Batch Normalization
         self.bn1 = nn.BatchNorm3d(out_channels)
 
@@ -27,8 +28,8 @@ class CNN3DBlock(nn.Module):
 
         # 5 x 5 x 5 3D CNN
         self.conv2 = nn.Conv3d(out_channels, out_channels, kernel_size=5, 
-                               stride=1, padding=2)
-        
+                              stride=1, padding=2)
+      
         # Batch Normalization
         self.bn2 = nn.BatchNorm3d(out_channels)
 
@@ -46,29 +47,17 @@ class CNN3DBlock(nn.Module):
 
         return out
 
-
 class MultiPlane_MultiSlice_Extract_Project(nn.Module):
     '''
     The multi-plane and multi-slice image features extraction from the 3D 
     representation features X and applying 2D CNN followed by Non-Linear
     Projection
+    N = length = width = height based on the mentioned input size in the paper
     Ref: 3.3. Extraction of Multi-plane, Multi slice images and 
          3.4. 2D Convolutional Neural Network Block
     '''
     def __init__(self, out_channels: int):
         super(MultiPlane_MultiSlice_Extract_Project, self).__init__()
-
-        # The features are calculated from the extraction operator E.    Eq. (2)
-        # we can use convolutions to achieve the following:
-        # The operator consists of coronal features extractor Ecor : R(C3d×L×W×H) → R(C3d×N×W×H)
-        self.coronal_feat_ext = nn.Conv3d(in_channels=out_channels, out_channels=out_channels, kernel_size=(1, 5, 1), stride=(1, 1, 1), padding=(0, 2, 0))
-
-        # The operator consists of sagittal features extractor Esag : R(C3d×L×W×H) → R(C3d×L×N×H)
-        self.sagittal_feat_ext= nn.Conv3d(in_channels=out_channels, out_channels=out_channels, kernel_size=(1, 1, 5), stride=(1, 1, 1), padding=(0, 0, 2))
-
-        # The operator consists of axial features extractor Eax : R(C3d×L×W×H) → R(C3d×L×W×N)
-        self.axial_feat_ext = nn.Conv3d(in_channels=out_channels, out_channels=out_channels, kernel_size=(5, 1, 1), stride=(1, 1, 1), padding=(2, 0, 0))
-
         # 2D CNN part
         # Load the pre-trained ResNet-18 model and Extract the global average pooling layer
         self.gap_layer = models.resnet50(pretrained=True).avgpool
@@ -81,28 +70,32 @@ class MultiPlane_MultiSlice_Extract_Project(nn.Module):
             )
 
     def forward(self, input_tensor):
-        # Extract coronal, axial, and sagittal features
-        # Apply the convolutions and extract features
-        Ecor = self.coronal_feat_ext(input_tensor)
-        Esag = self.sagittal_feat_ext(input_tensor.clone())
-        Eax = self.axial_feat_ext(input_tensor.clone())
+        # Extract coronal features
+        coronal_slices = torch.split(input_tensor, 1, dim=2)                      # This gives us a tuple of length 128, where each element has shape (batch_size, channels, 1, width, height) 
+        Ecor = torch.cat(coronal_slices, dim=2)                                   # lets concatenate along dimension 2 to get the desired output shape for Ecor: R^C3d×N×W×H.
 
-        # Using extractor E, calculate S from input_tensor (X)           Eq. (3)
-        # Since Length, Width and Height are same lets reshape the extracted features as well
-        Scor = (Ecor * input_tensor).permute(0, 2, 1, 3, 4).contiguous()
-        Ssag = (Esag * input_tensor).permute(0, 4, 1, 2, 3).contiguous()
-        Sax = (Eax * input_tensor).permute(0, 3, 1, 2, 4).contiguous()
-        
+        saggital_slices = torch.split(input_tensor.clone(), 1, dim = 3)           # This gives us a tuple of length 128, where each element has shape (batch_size, channels, length, 1, height) 
+        Esag = torch.cat(saggital_slices, dim = 3)                                # lets concatenate along dimension 3 to get the desired output shape for Ecor: R^C3d×L×N×H.
+
+        axial_slices = torch.split(input_tensor.clone(), 1, dim = 4)              # This gives us a tuple of length 128, where each element has shape (batch_size, channels, length, width, 1) 
+        Eax = torch.cat(axial_slices, dim = 4)                                    # lets concatenate along dimension 3 to get the desired output shape for Ecor: R^C3d×L×W×N.
+
+        # Lets calculate S using E for X
+        # after matirx multiplications, we reshape the outputs based on its plane for concatenation 
+        Scor = (Ecor * input_tensor).permute(0, 2, 1, 3, 4).contiguous()          # Scor will now have a shape (batch_size, N, channels, width, height) 
+        Ssag = (Esag * input_tensor).permute(0, 3, 1, 2, 4).contiguous()          # Ssag will now have a shape (batch_size, N, channels, length, height)
+        Sax  =  (Eax * input_tensor).permute(0, 4, 1, 2, 3).contiguous()          # Sax will now have a shape  (batch_size, N, channels, length, width)
+       
         # Concatenate the reshaped extracted features : R(C3d×L×W×H) → R(3N×C3d×L×L)
-        concatenate_feat = torch.cat((Scor, Ssag, Sax), dim = 1)
+        S = torch.cat((Scor, Ssag, Sax), dim = 1)                                 # Now S will have a shape of (batch_size, 3N, channels, length, length)
 
         # 2D CNN block
         # perform global average pooling using pre-trained ResNet50 network
         # D2d : R(3N×C3d×L×L) → R(3N×C2d)    (C2d is out channel size of 2D CNN)
-        pooled_feat = self.gap_layer(concatenate_feat)                #  Eq. (4)
+        pooled_feat = self.gap_layer(S).squeeze(dim=3).squeeze(dim=3)             #  Eq. (4)
 
         # Non-Linear Projection part T ∈ R(3N×d)     (d is projection dimension)
-        output_tensor = self.non_linear_proj(pooled_feat.squeeze(dim=3).squeeze(dim=3))
+        output_tensor = self.non_linear_proj(pooled_feat)                         # Now we have the desired output shape
         return output_tensor
 
 
@@ -139,9 +132,10 @@ class EmbeddingLayer(nn.Module):
         x += self.plane
 
         x += self.positions
-        
+       
         # the above represents Eq. (6)
         return x
+
 
 class MultiHeadAttention(nn.Module):
     def __init__(self, emb_size: int = 256, num_heads: int = 8, dropout: float = 0):
@@ -172,6 +166,7 @@ class MultiHeadAttention(nn.Module):
         out = self.projection(out)
         return out
 
+
 class ResidualAdd(nn.Module):
     def __init__(self, fn):
         super().__init__()
@@ -183,6 +178,7 @@ class ResidualAdd(nn.Module):
         x += res
         return x
 
+
 class FeedForwardBlock(nn.Sequential):
     def __init__(self, emb_size: int, expansion: int = 3, drop_p: float = 0.):
         super().__init__(
@@ -193,9 +189,10 @@ class FeedForwardBlock(nn.Sequential):
         )
 
 
+
 class TransformerEncoderBlock(nn.Sequential):
     '''
-
+    We keep the forward expansion as 3, since all the hidden and MLP sizes must be 768 in the transformer encoder
     Ref. 3.6. Transformer Block
     '''
     def __init__(self,
@@ -245,9 +242,7 @@ class ClassificationHead(nn.Sequential):
             Reduce('b n e -> b e', reduction='mean'),
             nn.LayerNorm(emb_size),
             nn.Linear(emb_size, n_classes))
-
-
-
+        
 class M3T(nn.Sequential):
     def __init__(self,
                 in_channels: int = 1,
@@ -264,8 +259,6 @@ class M3T(nn.Sequential):
             ClassificationHead(emb_size, n_classes)
         )
 
-# example usage
-from torchsummary import summary
-
-model = M3T()
+# from torchsummary import summary
+# model = M3T()
 # summary(model, (1, 128, 128, 128))
