@@ -349,4 +349,166 @@ https://github.com/FrancescoSaverioZuppichini/ViT
 >         )
 
 You can find the complete implementation of M3T in M3T.py file. Now lets test the M3T using ```torchsummary``` to check the number of parameters
+>```
+>from torchsummary import summary
+>model = M3T()
+>summary(model, (1, 128, 128, 128))
+
+>```
+>----------------------------------------------------------------
+>        Layer (type)               Output Shape         Param #
+>================================================================
+>            Conv3d-1    [-1, 32, 128, 128, 128]           4,032
+>       BatchNorm3d-2    [-1, 32, 128, 128, 128]              64
+>              ReLU-3    [-1, 32, 128, 128, 128]               0
+>            Conv3d-4    [-1, 32, 128, 128, 128]         128,032
+>       BatchNorm3d-5    [-1, 32, 128, 128, 128]              64
+>              ReLU-6    [-1, 32, 128, 128, 128]               0
+>        CNN3DBlock-7    [-1, 32, 128, 128, 128]               0
+> AdaptiveAvgPool2d-8        [-1, 384, 32, 1, 1]               0
+>            Linear-9             [-1, 384, 512]          16,896
+>             ReLU-10             [-1, 384, 512]               0
+>           Linear-11             [-1, 384, 256]         131,328
+>MultiPlane_MultiSlice_Extract_Project-12             [-1, 384, 256]               0
+>   EmbeddingLayer-13             [-1, 388, 256]               0
+>        LayerNorm-14             [-1, 388, 256]             512
+>           Linear-15             [-1, 388, 768]         197,376
+>          Dropout-16          [-1, 8, 388, 388]               0
+>           Linear-17             [-1, 388, 256]          65,792
+>MultiHeadAttention-18             [-1, 388, 256]               0
+>          Dropout-19             [-1, 388, 256]               0
+>      ResidualAdd-20             [-1, 388, 256]               0
+>        LayerNorm-21             [-1, 388, 256]             512
+>           Linear-22             [-1, 388, 768]         197,376
+>             GELU-23             [-1, 388, 768]               0
+>          Dropout-24             [-1, 388, 768]               0
+>           Linear-25             [-1, 388, 256]         196,864
+>          Dropout-26             [-1, 388, 256]               0
+>      ResidualAdd-27             [-1, 388, 256]               0
+>        LayerNorm-28             [-1, 388, 256]             512
+>           Linear-29             [-1, 388, 768]         197,376
+>          Dropout-30          [-1, 8, 388, 388]               0
+>           Linear-31             [-1, 388, 256]          65,792
+>MultiHeadAttention-32             [-1, 388, 256]               0
+>          Dropout-33             [-1, 388, 256]               0
+>      ResidualAdd-34             [-1, 388, 256]               0
+>        LayerNorm-35             [-1, 388, 256]             512
+>           Linear-36             [-1, 388, 768]         197,376
+>             GELU-37             [-1, 388, 768]               0
+>          Dropout-38             [-1, 388, 768]               0
+>           Linear-39             [-1, 388, 256]         196,864
+>          Dropout-40             [-1, 388, 256]               0
+>      ResidualAdd-41             [-1, 388, 256]               0
+>        LayerNorm-42             [-1, 388, 256]             512
+>           Linear-43             [-1, 388, 768]         197,376
+>          Dropout-44          [-1, 8, 388, 388]               0
+>           Linear-45             [-1, 388, 256]          65,792
+>MultiHeadAttention-46             [-1, 388, 256]               0
+>          Dropout-47             [-1, 388, 256]               0
+>      ResidualAdd-48             [-1, 388, 256]               0
+>        LayerNorm-49             [-1, 388, 256]             512
+>           Linear-50             [-1, 388, 768]         197,376
+>             GELU-51             [-1, 388, 768]               0
+>          Dropout-52             [-1, 388, 768]               0
+>           Linear-53             [-1, 388, 256]         196,864
+>          Dropout-54             [-1, 388, 256]               0
+>      ResidualAdd-55             [-1, 388, 256]               0
+>        LayerNorm-56             [-1, 388, 256]             512
+>           Linear-57             [-1, 388, 768]         197,376
+>          Dropout-58          [-1, 8, 388, 388]               0
+>           Linear-59             [-1, 388, 256]          65,792
+>MultiHeadAttention-60             [-1, 388, 256]               0
+>          Dropout-61             [-1, 388, 256]               0
+>      ResidualAdd-62             [-1, 388, 256]               0
+>        LayerNorm-63             [-1, 388, 256]             512
+>           Linear-64             [-1, 388, 768]         197,376
+>             GELU-65             [-1, 388, 768]               0
+>          Dropout-66             [-1, 388, 768]               0
+>           Linear-67             [-1, 388, 256]         196,864
+>          Dropout-68             [-1, 388, 256]               0
+>      ResidualAdd-69             [-1, 388, 256]               0
+>        LayerNorm-70             [-1, 388, 256]             512
+>           Linear-71             [-1, 388, 768]         197,376
+>          Dropout-72          [-1, 8, 388, 388]               0
+>           Linear-73             [-1, 388, 256]          65,792
+>MultiHeadAttention-74             [-1, 388, 256]               0
+>          Dropout-75             [-1, 388, 256]               0
+>      ResidualAdd-76             [-1, 388, 256]               0
+>        LayerNorm-77             [-1, 388, 256]             512
+>           Linear-78             [-1, 388, 768]         197,376
+>             GELU-79             [-1, 388, 768]               0
+>          Dropout-80             [-1, 388, 768]               0
+>           Linear-81             [-1, 388, 256]         196,864
+>          Dropout-82             [-1, 388, 256]               0
+>      ResidualAdd-83             [-1, 388, 256]               0
+>        LayerNorm-84             [-1, 388, 256]             512
+>           Linear-85             [-1, 388, 768]         197,376
+>          Dropout-86          [-1, 8, 388, 388]               0
+>           Linear-87             [-1, 388, 256]          65,792
+>MultiHeadAttention-88             [-1, 388, 256]               0
+>          Dropout-89             [-1, 388, 256]               0
+>      ResidualAdd-90             [-1, 388, 256]               0
+>        LayerNorm-91             [-1, 388, 256]             512
+>           Linear-92             [-1, 388, 768]         197,376
+>             GELU-93             [-1, 388, 768]               0
+>          Dropout-94             [-1, 388, 768]               0
+>           Linear-95             [-1, 388, 256]         196,864
+>          Dropout-96             [-1, 388, 256]               0
+>      ResidualAdd-97             [-1, 388, 256]               0
+>        LayerNorm-98             [-1, 388, 256]             512
+>           Linear-99             [-1, 388, 768]         197,376
+>         Dropout-100          [-1, 8, 388, 388]               0
+>          Linear-101             [-1, 388, 256]          65,792
+>MultiHeadAttention-102             [-1, 388, 256]               0
+>         Dropout-103             [-1, 388, 256]               0
+>     ResidualAdd-104             [-1, 388, 256]               0
+>       LayerNorm-105             [-1, 388, 256]             512
+>          Linear-106             [-1, 388, 768]         197,376
+>            GELU-107             [-1, 388, 768]               0
+>         Dropout-108             [-1, 388, 768]               0
+>          Linear-109             [-1, 388, 256]         196,864
+>         Dropout-110             [-1, 388, 256]               0
+>     ResidualAdd-111             [-1, 388, 256]               0
+>       LayerNorm-112             [-1, 388, 256]             512
+>          Linear-113             [-1, 388, 768]         197,376
+>         Dropout-114          [-1, 8, 388, 388]               0
+>          Linear-115             [-1, 388, 256]          65,792
+>MultiHeadAttention-116             [-1, 388, 256]               0
+>         Dropout-117             [-1, 388, 256]               0
+>     ResidualAdd-118             [-1, 388, 256]               0
+>       LayerNorm-119             [-1, 388, 256]             512
+>          Linear-120             [-1, 388, 768]         197,376
+>            GELU-121             [-1, 388, 768]               0
+>         Dropout-122             [-1, 388, 768]               0
+>          Linear-123             [-1, 388, 256]         196,864
+>         Dropout-124             [-1, 388, 256]               0
+>     ResidualAdd-125             [-1, 388, 256]               0
+>          Reduce-126                  [-1, 256]               0
+>       LayerNorm-127                  [-1, 256]             512
+>          Linear-128                    [-1, 2]             514
+>================================================================
+>Total params: 5,548,898
+>Trainable params: 5,548,898
+>Non-trainable params: 0
+>----------------------------------------------------------------
+>Input size (MB): 8.00
+>Forward/backward pass size (MB): 3790.18
+>Params size (MB): 21.17
+>Estimated Total Size (MB): 3819.34
+>----------------------------------------------------------------
+
+
+We can see that the number of parameters that I got here is different from the ones that was mentioned in the paper. I have got **5.5M trainable parameters** but in the paper they said that they have received **29.12M trainable parameters**
+
+if we change the **Embedding dimension d = 768 instead of 256** and keep **forward expansion in transformer encoder as 1**, and changing the hidden size in the **non linear projection block from (512, 256) to (512, 768).** I'm getting nearly **28.91M trainable parameters** with torch summary 
+
+# Conclusions
+Here, we have seen how to implement M3T in a scalable and customizable way. But, I have followed each and every step in detail when implementing it, However, I have mailed the authors for clarification, but haven't got any responses.  
+
+I humbly request the scientific community to take part in my work to see if there are any potential errors in my implementation. I would greatly appreciate any kind of feedback that helps me improve my skills.
+
+Thank you for your time
+
+
+Vishnu
 
