@@ -182,7 +182,7 @@ After calculating the multi-plane and multi-slice image tokens, position and pla
 
 **CLS Token:** A learnable classification token is prepended to these tokens, similar to ViT class token.
 
-**Plane separation tokens:** A learnable separation token are also appended between each plane token and the end of the tokens, similar to BERT sep token.
+**Plane separation tokens:** A learnable separation token appended between each plane token and the end of the tokens, similar to BERT sep token.
 
 
 ![image](Screenshots/6.png)
@@ -227,7 +227,7 @@ Lets implement them now:
 >         return x
 
 
-**Now comes the Transformer Block, if you have implemented ViT's, then it's a cake for you because its the same with little changes in dimensions**
+**Now, the Transformer Block, if you have implemented ViT's, then it's a cake for you because its the same with little changes in dimensions**
 
 **According to Implementation details in the paper, the authors mentioned that the number 256 is same with projection dimension (attention dimension) d used in the transformer. The number of transformer layers is 8. The hidden size and MLP size are 768, and the number of heads = 8.**
 
@@ -516,7 +516,7 @@ You can find the complete implementation of M3T in M3T.py file. Now lets test th
 
 We can see that the number of parameters that I got here is different from the ones that was mentioned in the paper. I have got **5.5M trainable parameters** but in the paper the authors said they have received **29.12M trainable parameters**
 
-When I change the **Embedding dimension d = 768 instead of 256** and keep **forward expansion in transformer encoder as 1**, and changing the hidden size in the **non linear projection block from (512, 256) to (512, 768).** I'm getting nearly **28.91M trainable parameters** with torch summary 
+When I change the **Embedding dimension d = 768 instead of 256**, keeping the **forward expansion in transformer encoder as 1**, and changing the hidden size in the **non linear projection block from (512, 256) to (512, 768).** I'm getting nearly **28.91M trainable parameters** with torch summary 
 
 # Conclusions
 I have diligently followed each step in implementing M3T with utmost care and attention to detail. Despite reaching out to the authors for clarification, I regrettably have not received any responses. 
