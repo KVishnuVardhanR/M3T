@@ -115,7 +115,7 @@ However, the authors did not mention what method they have used to achieve the a
 >         return Ecor
 
 
-We can get the axial ans saggital features Esag, Eax using the above method. 
+We can get the axial and saggital features Esag, Eax using the above method. 
 
 Now after extracting [Ecor, Esag and Eax] = E, **The authors calculated multi-plane multi-slice features S = [Scor, Ssag, Sax] using E = [Ecor, Esag, Eax] from 3D representation features X**. We can use basic matrix multiplication to achieve it. We will also complete the 2D CNN block part within this class:
 
@@ -146,10 +146,12 @@ Now after extracting [Ecor, Esag and Eax] = E, **The authors calculated multi-pl
 >         # Extract coronal features
 >         coronal_slices = torch.split(input_tensor, 1, dim=2)                      # This gives us a tuple of length 128, where each element has shape (batch_size, channels, 1, width, height) 
 >         Ecor = torch.cat(coronal_slices, dim=2)                                   # lets concatenate along dimension 2 to get the desired output shape for Ecor: R^C3d×N×W×H.
-> 
+>
+>         # Extract saggital features
 >         saggital_slices = torch.split(input_tensor.clone(), 1, dim = 3)           # This gives us a tuple of length 128, where each element has shape (batch_size, channels, length, 1, height) 
 >         Esag = torch.cat(saggital_slices, dim = 3)                                # lets concatenate along dimension 3 to get the desired output shape for Esag: R^C3d×L×N×H.
 >
+>         # Extract axial features
 >         axial_slices = torch.split(input_tensor.clone(), 1, dim = 4)              # This gives us a tuple of length 128, where each element has shape (batch_size, channels, length, width, 1) 
 >         Eax = torch.cat(axial_slices, dim = 4)                                    # lets concatenate along dimension 3 to get the desired output shape for Eax: R^C3d×L×W×N.
 >
