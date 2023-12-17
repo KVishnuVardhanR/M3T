@@ -238,7 +238,7 @@ Lets implement them now:
 
 
 Lets keep that in mind, I will not explain each part of the transformer encoder, but you can check out the following link to understand in detail if needed: 
-https://github.com/FrancescoSaverioZuppichini/ViT
+https://github.com/FrancescoSaverioZuppichini/ViT, We will be using 'cls_token' for classification task as mentioned in the original ViT paper 
 
 >```
 >class MultiHeadAttention(nn.Module):
