@@ -240,14 +240,12 @@ class ClassificationHead(nn.Module):
     '''
     def __init__(self, emb_size: int = 256, n_classes: int = 2):
         super().__init__()
-        self.norm = nn.LayerNorm(emb_size)
         self.linear = nn.Linear(emb_size, n_classes)
 
     def forward(self, x):
         # As x is of shape [batch_size, num_tokens, emb_size]
         # and the cls_token is the first token in the sequence
-        cls_token = x[:, 0, :]
-        cls_token = self.norm(cls_token)
+        cls_token = x[:, 0]
         return self.linear(cls_token)
         
 class M3T(nn.Sequential):
