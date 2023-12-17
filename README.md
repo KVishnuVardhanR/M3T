@@ -344,14 +344,12 @@ https://github.com/FrancescoSaverioZuppichini/ViT, We will be using 'cls_token' 
 >    '''
 >    def __init__(self, emb_size: int = 256, n_classes: int = 2):
 >        super().__init__()
->        self.norm = nn.LayerNorm(emb_size)
 >        self.linear = nn.Linear(emb_size, n_classes)
 >
 >    def forward(self, x):
 >        # As x is of shape [batch_size, num_tokens, emb_size]
 >        # and the cls_token is the first token in the sequence
->        cls_token = x[:, 0, :]
->        cls_token = self.norm(cls_token)
+>        cls_token = x[:, 0]
 >        return self.linear(cls_token)
 
 
@@ -508,12 +506,11 @@ You can find the complete implementation of M3T in M3T.py file. Now lets test th
 >          Linear-123             [-1, 388, 256]         196,864
 >         Dropout-124             [-1, 388, 256]               0
 >     ResidualAdd-125             [-1, 388, 256]               0
->     LayerNorm-126                    [-1, 256]             512
->          Linear-127                    [-1, 2]             514
->ClassificationHead-128                   [-1, 2]               0
+>          Linear-126                    [-1, 2]             514
+>ClassificationHead-127                   [-1, 2]               0
 >================================================================
->Total params: 5,548,898
->Trainable params: 5,548,898
+>Total params: 5,548,386
+>Trainable params: 5,548,386
 >Non-trainable params: 0
 >----------------------------------------------------------------
 >Input size (MB): 8.00
