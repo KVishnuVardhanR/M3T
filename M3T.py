@@ -232,16 +232,23 @@ class TransformerEncoder(nn.Sequential):
         super().__init__(*[TransformerEncoderBlock(**kwargs) for _ in range(depth)])
 
 
-class ClassificationHead(nn.Sequential):
+class ClassificationHead(nn.Module):
     '''
-    a linear classifier is used to classify the encoded input based on the MLP 
+    A linear classifier is used to classify the encoded input based on the MLP 
     head: ZKcls ∈ R(d). There are two final categorization classes: NC and AD.
+    The first token (cls_token) from the sequence is used for classification.
     '''
     def __init__(self, emb_size: int = 256, n_classes: int = 2):
-        super().__init__(
-            Reduce('b n e -> b e', reduction='mean'),
-            nn.LayerNorm(emb_size),
-            nn.Linear(emb_size, n_classes))
+        super().__init__()
+        self.norm = nn.LayerNorm(emb_size)
+        self.linear = nn.Linear(emb_size, n_classes)
+
+    def forward(self, x):
+        # As x is of shape [batch_size, num_tokens, emb_size]
+        # and the cls_token is the first token in the sequence
+        cls_token = x[:, 0, :]
+        cls_token = self.norm(cls_token)
+        return self.linear(cls_token)
         
 class M3T(nn.Sequential):
     def __init__(self,
