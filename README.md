@@ -336,16 +336,23 @@ https://github.com/FrancescoSaverioZuppichini/ViT
 >         super().__init__(*[TransformerEncoderBlock(**kwargs) for _ in range(depth)])
 >
 >
->class ClassificationHead(nn.Sequential):
->     '''
->     a linear classifier is used to classify the encoded input based on the MLP 
->     head: ZKcls ∈ R(d). There are two final categorization classes: NC and AD.
->     '''
->     def __init__(self, emb_size: int = 256, n_classes: int = 2):
->         super().__init__(
->             Reduce('b n e -> b e', reduction='mean'),
->             nn.LayerNorm(emb_size),
->             nn.Linear(emb_size, n_classes))
+>class ClassificationHead(nn.Module):
+>    '''
+>    A linear classifier is used to classify the encoded input based on the MLP 
+>    head: ZKcls ∈ R(d). There are two final categorization classes: NC and AD.
+>    The first token (cls_token) from the sequence is used for classification.
+>    '''
+>    def __init__(self, emb_size: int = 256, n_classes: int = 2):
+>        super().__init__()
+>        self.norm = nn.LayerNorm(emb_size)
+>        self.linear = nn.Linear(emb_size, n_classes)
+>
+>    def forward(self, x):
+>        # As x is of shape [batch_size, num_tokens, emb_size]
+>        # and the cls_token is the first token in the sequence
+>        cls_token = x[:, 0, :]
+>        cls_token = self.norm(cls_token)
+>        return self.linear(cls_token)
 
 
 **We have covered each and every part in the M3T. Lets give a final touch by calling them:**
@@ -477,7 +484,7 @@ You can find the complete implementation of M3T in M3T.py file. Now lets test th
 >           Linear-99             [-1, 388, 768]         197,376
 >         Dropout-100          [-1, 8, 388, 388]               0
 >          Linear-101             [-1, 388, 256]          65,792
->MultiHeadAttention-102             [-1, 388, 256]               0
+>MultiHeadAttention-102            [-1, 388, 256]               0
 >         Dropout-103             [-1, 388, 256]               0
 >     ResidualAdd-104             [-1, 388, 256]               0
 >       LayerNorm-105             [-1, 388, 256]             512
@@ -491,7 +498,7 @@ You can find the complete implementation of M3T in M3T.py file. Now lets test th
 >          Linear-113             [-1, 388, 768]         197,376
 >         Dropout-114          [-1, 8, 388, 388]               0
 >          Linear-115             [-1, 388, 256]          65,792
->MultiHeadAttention-116             [-1, 388, 256]               0
+>MultiHeadAttention-116            [-1, 388, 256]               0
 >         Dropout-117             [-1, 388, 256]               0
 >     ResidualAdd-118             [-1, 388, 256]               0
 >       LayerNorm-119             [-1, 388, 256]             512
@@ -501,9 +508,9 @@ You can find the complete implementation of M3T in M3T.py file. Now lets test th
 >          Linear-123             [-1, 388, 256]         196,864
 >         Dropout-124             [-1, 388, 256]               0
 >     ResidualAdd-125             [-1, 388, 256]               0
->          Reduce-126                  [-1, 256]               0
->       LayerNorm-127                  [-1, 256]             512
->          Linear-128                    [-1, 2]             514
+>     LayerNorm-126                    [-1, 256]             512
+>          Linear-127                    [-1, 2]             514
+>ClassificationHead-128                   [-1, 2]               0
 >================================================================
 >Total params: 5,548,898
 >Trainable params: 5,548,898
