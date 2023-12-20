@@ -208,7 +208,7 @@ Lets implement them now:
 >         # zsep ∈ R(d)
 >         self.sep_token = nn.Parameter(torch.randn(1,1, emb_size))
 >
->         # Ppos ∈ R((3S+4)×d)
+>         # Ppln ∈ R((3S+4)×d)
 >         self.plane = nn.Parameter(torch.randn(total_tokens + 4, emb_size))
 >
 >         # Ppos ∈ R((3S+4)×d)
