@@ -118,9 +118,9 @@ class EmbeddingLayer(nn.Module):
 
         # Ppln ∈ R((3S+4)×d)
         # To inject plane-specific information to the model, we will use separate plane embeddings for different segments of the input tensor (refer, Fig.3(d))
-        self.coronal_plane = nn.Parameter(torch.randn(128 + 2, emb_size))
-        self.sagittal_plane = nn.Parameter(torch.randn(128 + 1, emb_size))
-        self.axial_plane = nn.Parameter(torch.randn(128 + 1, emb_size))
+        self.coronal_plane = nn.Parameter(torch.randn(1, emb_size))
+        self.sagittal_plane = nn.Parameter(torch.randn(1, emb_size))
+        self.axial_plane = nn.Parameter(torch.randn(1, emb_size))
 
         # Ppos ∈ R((3S+4)×d)
         self.positions = nn.Parameter(torch.randn(total_tokens + 4, emb_size))
