@@ -117,7 +117,10 @@ class EmbeddingLayer(nn.Module):
         self.sep_token = nn.Parameter(torch.randn(1,1, emb_size))
 
         # Ppln ∈ R((3S+4)×d)
-        self.plane = nn.Parameter(torch.randn(total_tokens + 4, emb_size))
+        # To inject plane-specific information to the model, we will use separate plane embeddings for different segments of the input tensor (refer, Fig.3(d))
+        self.coronal_plane = nn.Parameter(torch.randn(128 + 2, emb_size))
+        self.sagittal_plane = nn.Parameter(torch.randn(128 + 1, emb_size))
+        self.axial_plane = nn.Parameter(torch.randn(128 + 1, emb_size))
 
         # Ppos ∈ R((3S+4)×d)
         self.positions = nn.Parameter(torch.randn(total_tokens + 4, emb_size))
@@ -129,7 +132,9 @@ class EmbeddingLayer(nn.Module):
 
         x = torch.cat((cls_tokens, input_tensor[:, :128, :], sep_token, input_tensor[:, 128:256, :], sep_token, input_tensor[:, 256:, :], sep_token), dim=1)
 
-        x += self.plane
+        x[:, :130] += self.coronal_plane
+        x[:, 130:259] += self.sagittal_plane
+        x[:, 259:] += self.axial_plane
 
         x += self.positions
        
