@@ -153,7 +153,7 @@ Now after extracting [Ecor, Esag and Eax] = E, **The authors calculated multi-pl
 >
 >         # Extract axial features
 >         axial_slices = torch.split(input_tensor.clone(), 1, dim = 4)              # This gives us a tuple of length 128, where each element has shape (batch_size, channels, length, width, 1) 
->         Eax = torch.cat(axial_slices, dim = 4)                                    # lets concatenate along dimension 3 to get the desired output shape for Eax: R^C3d×L×W×N.
+>         Eax = torch.cat(axial_slices, dim = 4)                                    # lets concatenate along dimension 4 to get the desired output shape for Eax: R^C3d×L×W×N.
 >
 >         # Lets calculate S using E for X
 >         # after matirx multiplications, we reshape the outputs based on its plane for concatenation 
@@ -209,19 +209,24 @@ Lets implement them now:
 >         self.sep_token = nn.Parameter(torch.randn(1,1, emb_size))
 >
 >         # Ppln ∈ R((3S+4)×d)
->         self.plane = nn.Parameter(torch.randn(total_tokens + 4, emb_size))
+>         # To inject plane-specific information to the model, we will use separate plane embeddings for different segments of the input tensor (refer, Fig.3(d))
+>         self.coronal_plane = nn.Parameter(torch.randn(128 + 2, emb_size))
+>         self.sagittal_plane = nn.Parameter(torch.randn(128 + 1, emb_size))
+>         self.axial_plane = nn.Parameter(torch.randn(128 + 1, emb_size))
 >
 >         # Ppos ∈ R((3S+4)×d)
 >         self.positions = nn.Parameter(torch.randn(total_tokens + 4, emb_size))
 >
 >     def forward(self, input_tensor):
 >         b, _, _ = input_tensor.shape
->         cls_tokens = repeat(self.cls_token, '() n e -> b n e', b=b)
+>         cls_token = repeat(self.cls_token, '() n e -> b n e', b=b)
 >         sep_token = repeat(self.sep_token, '() n e -> b n e', b=b)
 >
->         x = torch.cat((cls_tokens, input_tensor[:, :128, :], sep_token, input_tensor[:, 128:256, :], sep_token, input_tensor[:, 256:, :], sep_token), dim=1)
+>         x = torch.cat((cls_token, input_tensor[:, :128, :], sep_token, input_tensor[:, 128:256, :], sep_token, input_tensor[:, 256:, :], sep_token), dim=1)
 >
->         x += self.plane
+>         x[:, :130] += self.coronal_plane
+>         x[:, 130:259] += self.sagittal_plane
+>         x[:, 259:] += self.axial_plane
 >
 >         x += self.positions
 >        
