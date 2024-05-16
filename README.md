@@ -4,7 +4,7 @@
 To develop a novel deep learning method to classify Alzheimer’s disease, Research paper can be accessed from the following link:
 https://openaccess.thecvf.com/content/CVPR2022/papers/Jang_M3T_Three-Dimensional_Medical_Image_Classifier_Using_Multi-Plane_and_Multi-Slice_Transformer_CVPR_2022_paper.pdf
 
-If you use this code in your research, I kindly request you to cite my work. My work has a DOI and the related information can be found in the CITATION.cff file.
+**If you use this code in your research, I kindly request you to cite my work. My work has a DOI and the related information can be found in the CITATION.cff file.**
 
 Alzheimer’s : A type of brain disorder that causes problems with memory, thinking and behaviour
 ![image](Screenshots/1.png)
