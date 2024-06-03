@@ -60,16 +60,19 @@ class MultiPlane_MultiSlice_Extract_Project(nn.Module):
         super(MultiPlane_MultiSlice_Extract_Project, self).__init__()
         # 2D CNN part
         # Load the pre-trained ResNet-18 model and Extract the global average pooling layer
-        self.gap_layer = models.resnet50(pretrained=True).avgpool
+        self.CNN_2D = models.resnet50(weights=True)
+        self.CNN_2D.conv1 = nn.Conv2d(out_channels,64,kernel_size=7,stride=2,padding=3,bias=False)
+        self.CNN_2D.fc = nn.Identity()
 
         # Non - Linear Projection block
         self.non_linear_proj = nn.Sequential(
-            nn.Linear(out_channels, 512),
+            nn.Linear(2048, 512),
             nn.ReLU(),
             nn.Linear(512, 256)
             )
 
     def forward(self, input_tensor):
+        B, C, D, H, W = input_tensor.shape
         # Extract coronal features
         coronal_slices = torch.split(input_tensor, 1, dim=2)                      # This gives us a tuple of length 128, where each element has shape (batch_size, channels, 1, width, height) 
         Ecor = torch.cat(coronal_slices, dim=2)                                   # lets concatenate along dimension 2 to get the desired output shape for Ecor: R^C3d×N×W×H.
@@ -92,8 +95,8 @@ class MultiPlane_MultiSlice_Extract_Project(nn.Module):
         # 2D CNN block
         # perform global average pooling using pre-trained ResNet50 network
         # D2d : R(3N×C3d×L×L) → R(3N×C2d)    (C2d is out channel size of 2D CNN)
-        pooled_feat = self.gap_layer(S).squeeze(dim=3).squeeze(dim=3)             #  Eq. (4)
-
+        S = S.view(-1,C,H,W).contiguous()
+        pooled_feat = self.CNN_2D(S).view(B, 3*H, -1)             #  Eq. (4)
         # Non-Linear Projection part T ∈ R(3N×d)     (d is projection dimension)
         output_tensor = self.non_linear_proj(pooled_feat)                         # Now we have the desired output shape
         return output_tensor
@@ -185,7 +188,7 @@ class ResidualAdd(nn.Module):
 
 
 class FeedForwardBlock(nn.Sequential):
-    def __init__(self, emb_size: int, expansion: int = 3, drop_p: float = 0.):
+    def __init__(self, emb_size: int, expansion: int = 2, drop_p: float = 0.):
         super().__init__(
             nn.Linear(emb_size, expansion * emb_size),
             nn.GELU(),
@@ -203,7 +206,7 @@ class TransformerEncoderBlock(nn.Sequential):
     def __init__(self,
                  emb_size: int = 256,
                  drop_p: float = 0.,
-                 forward_expansion: int = 3,
+                 forward_expansion: int = 2,
                  forward_drop_p: float = 0.,
                  ** kwargs):
         super().__init__(
@@ -271,4 +274,5 @@ class M3T(nn.Sequential):
 
 # from torchsummary import summary
 # model = M3T()
-# summary(model, (1, 128, 128, 128))
+# # Calculate total number of trainable parameters
+# summary(model.to('cuda'), (1, 128, 128, 128))
