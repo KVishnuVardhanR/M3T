@@ -134,17 +134,22 @@ Now after extracting [Ecor, Esag and Eax] = E, **The authors calculated multi-pl
 >     def __init__(self, out_channels: int):
 >         super(MultiPlane_MultiSlice_Extract_Project, self).__init__()
 >         # 2D CNN part
->         # Load the pre-trained ResNet-18 model and Extract the global average pooling layer
->         self.gap_layer = models.resnet50(pretrained=True).avgpool
+>         # Load the pre-trained ResNet-18 model and remove the fully connected layer to extract the processed features
+>         self.CNN_2D = models.resnet50(weights=True)
+>         self.CNN_2D.conv1 = nn.Conv2d(out_channels, 64, kernel_size=7, stride=2, padding=3, bias=False)
+>         self.CNN_2D.fc = nn.Identity()
 >
 >         # Non - Linear Projection block
 >         self.non_linear_proj = nn.Sequential(
->             nn.Linear(out_channels, 512),
+>             nn.Linear(2048, 512),                                                 # Since the output features from average pooling layer of resnet50 model is 2048
 >             nn.ReLU(),
 >             nn.Linear(512, 256)
 >             )
 >
 >     def forward(self, input_tensor):
+>
+>         B, C, D, H, W = input_tensor.shape
+>
 >         # Extract coronal features
 >         coronal_slices = torch.split(input_tensor, 1, dim=2)                      # This gives us a tuple of length 128, where each element has shape (batch_size, channels, 1, width, height) 
 >         Ecor = torch.cat(coronal_slices, dim=2)                                   # lets concatenate along dimension 2 to get the desired output shape for Ecor: R^C3d×N×W×H.
@@ -167,9 +172,12 @@ Now after extracting [Ecor, Esag and Eax] = E, **The authors calculated multi-pl
 >         S = torch.cat((Scor, Ssag, Sax), dim = 1)                                 # Now S will have a shape of (batch_size, 3N, channels, length, length)
 >
 >         # 2D CNN block
->         # perform global average pooling using pre-trained ResNet50 network
+>         # To use pre-trained ResNet50 network on input tensor of shape (), we must reshape the tensor
+>         S = S.view(-1,C,H,W).contiguous()                                        # Now S will have a shape of (batch_size * 3N, channels, legnth, length)
+>
+>         # Now lets extract the features from the average pooling layer of the resnet model
 >         # D2d : R(3N×C3d×L×L) → R(3N×C2d)    (C2d is out channel size of 2D CNN)
->         pooled_feat = self.gap_layer(S).squeeze(dim=3).squeeze(dim=3)             #  Eq. (4)
+>         pooled_feat = self.CNN_2D(S).view(B, 3*H, -1)                            #  Eq. (4)
 >
 >         # Non-Linear Projection part T ∈ R(3N×d)     (d is projection dimension)
 >         output_tensor = self.non_linear_proj(pooled_feat)                         # Now we have the desired output shape
@@ -291,7 +299,7 @@ https://github.com/FrancescoSaverioZuppichini/ViT, We will be using 'cls_token' 
 >
 >
 >class FeedForwardBlock(nn.Sequential):
->     def __init__(self, emb_size: int, expansion: int = 3, drop_p: float = 0.):
+>     def __init__(self, emb_size: int, expansion: int = 2, drop_p: float = 0.):
 >         super().__init__(
 >             nn.Linear(emb_size, expansion * emb_size),
 >             nn.GELU(),
@@ -309,7 +317,7 @@ https://github.com/FrancescoSaverioZuppichini/ViT, We will be using 'cls_token' 
 >     def __init__(self,
 >                  emb_size: int = 256,
 >                  drop_p: float = 0.,
->                  forward_expansion: int = 3,
+>                  forward_expansion: int = 2,
 >                  forward_drop_p: float = 0.,
 >                  ** kwargs):
 >         super().__init__(
@@ -395,146 +403,317 @@ You can find the complete implementation of M3T in M3T.py file. Now lets test th
 >       BatchNorm3d-5    [-1, 32, 128, 128, 128]              64
 >              ReLU-6    [-1, 32, 128, 128, 128]               0
 >        CNN3DBlock-7    [-1, 32, 128, 128, 128]               0
-> AdaptiveAvgPool2d-8        [-1, 384, 32, 1, 1]               0
->            Linear-9             [-1, 384, 512]          16,896
->             ReLU-10             [-1, 384, 512]               0
->           Linear-11             [-1, 384, 256]         131,328
->MultiPlane_MultiSlice_Extract_Project-12             [-1, 384, 256]               0
->   EmbeddingLayer-13             [-1, 388, 256]               0
->        LayerNorm-14             [-1, 388, 256]             512
->           Linear-15             [-1, 388, 768]         197,376
->          Dropout-16          [-1, 8, 388, 388]               0
->           Linear-17             [-1, 388, 256]          65,792
->MultiHeadAttention-18             [-1, 388, 256]               0
->          Dropout-19             [-1, 388, 256]               0
->      ResidualAdd-20             [-1, 388, 256]               0
->        LayerNorm-21             [-1, 388, 256]             512
->           Linear-22             [-1, 388, 768]         197,376
->             GELU-23             [-1, 388, 768]               0
->          Dropout-24             [-1, 388, 768]               0
->           Linear-25             [-1, 388, 256]         196,864
->          Dropout-26             [-1, 388, 256]               0
->      ResidualAdd-27             [-1, 388, 256]               0
->        LayerNorm-28             [-1, 388, 256]             512
->           Linear-29             [-1, 388, 768]         197,376
->          Dropout-30          [-1, 8, 388, 388]               0
->           Linear-31             [-1, 388, 256]          65,792
->MultiHeadAttention-32             [-1, 388, 256]               0
->          Dropout-33             [-1, 388, 256]               0
->      ResidualAdd-34             [-1, 388, 256]               0
->        LayerNorm-35             [-1, 388, 256]             512
->           Linear-36             [-1, 388, 768]         197,376
->             GELU-37             [-1, 388, 768]               0
->          Dropout-38             [-1, 388, 768]               0
->           Linear-39             [-1, 388, 256]         196,864
->          Dropout-40             [-1, 388, 256]               0
->      ResidualAdd-41             [-1, 388, 256]               0
->        LayerNorm-42             [-1, 388, 256]             512
->           Linear-43             [-1, 388, 768]         197,376
->          Dropout-44          [-1, 8, 388, 388]               0
->           Linear-45             [-1, 388, 256]          65,792
->MultiHeadAttention-46             [-1, 388, 256]               0
->          Dropout-47             [-1, 388, 256]               0
->      ResidualAdd-48             [-1, 388, 256]               0
->        LayerNorm-49             [-1, 388, 256]             512
->           Linear-50             [-1, 388, 768]         197,376
->             GELU-51             [-1, 388, 768]               0
->          Dropout-52             [-1, 388, 768]               0
->           Linear-53             [-1, 388, 256]         196,864
->          Dropout-54             [-1, 388, 256]               0
->      ResidualAdd-55             [-1, 388, 256]               0
->        LayerNorm-56             [-1, 388, 256]             512
->           Linear-57             [-1, 388, 768]         197,376
->          Dropout-58          [-1, 8, 388, 388]               0
->           Linear-59             [-1, 388, 256]          65,792
->MultiHeadAttention-60             [-1, 388, 256]               0
->          Dropout-61             [-1, 388, 256]               0
->      ResidualAdd-62             [-1, 388, 256]               0
->        LayerNorm-63             [-1, 388, 256]             512
->           Linear-64             [-1, 388, 768]         197,376
->             GELU-65             [-1, 388, 768]               0
->          Dropout-66             [-1, 388, 768]               0
->           Linear-67             [-1, 388, 256]         196,864
->          Dropout-68             [-1, 388, 256]               0
->      ResidualAdd-69             [-1, 388, 256]               0
->        LayerNorm-70             [-1, 388, 256]             512
->           Linear-71             [-1, 388, 768]         197,376
->          Dropout-72          [-1, 8, 388, 388]               0
->           Linear-73             [-1, 388, 256]          65,792
->MultiHeadAttention-74             [-1, 388, 256]               0
->          Dropout-75             [-1, 388, 256]               0
->      ResidualAdd-76             [-1, 388, 256]               0
->        LayerNorm-77             [-1, 388, 256]             512
->           Linear-78             [-1, 388, 768]         197,376
->             GELU-79             [-1, 388, 768]               0
->          Dropout-80             [-1, 388, 768]               0
->           Linear-81             [-1, 388, 256]         196,864
->          Dropout-82             [-1, 388, 256]               0
->      ResidualAdd-83             [-1, 388, 256]               0
->        LayerNorm-84             [-1, 388, 256]             512
->           Linear-85             [-1, 388, 768]         197,376
->          Dropout-86          [-1, 8, 388, 388]               0
->           Linear-87             [-1, 388, 256]          65,792
->MultiHeadAttention-88             [-1, 388, 256]               0
->          Dropout-89             [-1, 388, 256]               0
->      ResidualAdd-90             [-1, 388, 256]               0
->        LayerNorm-91             [-1, 388, 256]             512
->           Linear-92             [-1, 388, 768]         197,376
->             GELU-93             [-1, 388, 768]               0
->          Dropout-94             [-1, 388, 768]               0
->           Linear-95             [-1, 388, 256]         196,864
->          Dropout-96             [-1, 388, 256]               0
->      ResidualAdd-97             [-1, 388, 256]               0
->        LayerNorm-98             [-1, 388, 256]             512
->           Linear-99             [-1, 388, 768]         197,376
->         Dropout-100          [-1, 8, 388, 388]               0
->          Linear-101             [-1, 388, 256]          65,792
->MultiHeadAttention-102            [-1, 388, 256]               0
->         Dropout-103             [-1, 388, 256]               0
->     ResidualAdd-104             [-1, 388, 256]               0
->       LayerNorm-105             [-1, 388, 256]             512
->          Linear-106             [-1, 388, 768]         197,376
->            GELU-107             [-1, 388, 768]               0
->         Dropout-108             [-1, 388, 768]               0
->          Linear-109             [-1, 388, 256]         196,864
->         Dropout-110             [-1, 388, 256]               0
->     ResidualAdd-111             [-1, 388, 256]               0
->       LayerNorm-112             [-1, 388, 256]             512
->          Linear-113             [-1, 388, 768]         197,376
->         Dropout-114          [-1, 8, 388, 388]               0
->          Linear-115             [-1, 388, 256]          65,792
->MultiHeadAttention-116            [-1, 388, 256]               0
->         Dropout-117             [-1, 388, 256]               0
->     ResidualAdd-118             [-1, 388, 256]               0
->       LayerNorm-119             [-1, 388, 256]             512
->          Linear-120             [-1, 388, 768]         197,376
->            GELU-121             [-1, 388, 768]               0
->         Dropout-122             [-1, 388, 768]               0
->          Linear-123             [-1, 388, 256]         196,864
->         Dropout-124             [-1, 388, 256]               0
->     ResidualAdd-125             [-1, 388, 256]               0
->          Linear-126                    [-1, 2]             514
->ClassificationHead-127                   [-1, 2]               0
+>            Conv2d-8           [-1, 64, 64, 64]         100,352
+>       BatchNorm2d-9           [-1, 64, 64, 64]             128
+>             ReLU-10           [-1, 64, 64, 64]               0
+>        MaxPool2d-11           [-1, 64, 32, 32]               0
+>           Conv2d-12           [-1, 64, 32, 32]           4,096
+>      BatchNorm2d-13           [-1, 64, 32, 32]             128
+>             ReLU-14           [-1, 64, 32, 32]               0
+>           Conv2d-15           [-1, 64, 32, 32]          36,864
+>      BatchNorm2d-16           [-1, 64, 32, 32]             128
+>             ReLU-17           [-1, 64, 32, 32]               0
+>           Conv2d-18          [-1, 256, 32, 32]          16,384
+>      BatchNorm2d-19          [-1, 256, 32, 32]             512
+>           Conv2d-20          [-1, 256, 32, 32]          16,384
+>      BatchNorm2d-21          [-1, 256, 32, 32]             512
+>             ReLU-22          [-1, 256, 32, 32]               0
+>       Bottleneck-23          [-1, 256, 32, 32]               0
+>           Conv2d-24           [-1, 64, 32, 32]          16,384
+>      BatchNorm2d-25           [-1, 64, 32, 32]             128
+>             ReLU-26           [-1, 64, 32, 32]               0
+>           Conv2d-27           [-1, 64, 32, 32]          36,864
+>      BatchNorm2d-28           [-1, 64, 32, 32]             128
+>             ReLU-29           [-1, 64, 32, 32]               0
+>           Conv2d-30          [-1, 256, 32, 32]          16,384
+>      BatchNorm2d-31          [-1, 256, 32, 32]             512
+>             ReLU-32          [-1, 256, 32, 32]               0
+>       Bottleneck-33          [-1, 256, 32, 32]               0
+>           Conv2d-34           [-1, 64, 32, 32]          16,384
+>      BatchNorm2d-35           [-1, 64, 32, 32]             128
+>             ReLU-36           [-1, 64, 32, 32]               0
+>           Conv2d-37           [-1, 64, 32, 32]          36,864
+>      BatchNorm2d-38           [-1, 64, 32, 32]             128
+>             ReLU-39           [-1, 64, 32, 32]               0
+>           Conv2d-40          [-1, 256, 32, 32]          16,384
+>      BatchNorm2d-41          [-1, 256, 32, 32]             512
+>             ReLU-42          [-1, 256, 32, 32]               0
+>       Bottleneck-43          [-1, 256, 32, 32]               0
+>           Conv2d-44          [-1, 128, 32, 32]          32,768
+>      BatchNorm2d-45          [-1, 128, 32, 32]             256
+>             ReLU-46          [-1, 128, 32, 32]               0
+>           Conv2d-47          [-1, 128, 16, 16]         147,456
+>      BatchNorm2d-48          [-1, 128, 16, 16]             256
+>             ReLU-49          [-1, 128, 16, 16]               0
+>           Conv2d-50          [-1, 512, 16, 16]          65,536
+>      BatchNorm2d-51          [-1, 512, 16, 16]           1,024
+>           Conv2d-52          [-1, 512, 16, 16]         131,072
+>      BatchNorm2d-53          [-1, 512, 16, 16]           1,024
+>             ReLU-54          [-1, 512, 16, 16]               0
+>      Bottleneck-55          [-1, 512, 16, 16]               0
+>           Conv2d-56          [-1, 128, 16, 16]          65,536
+>      BatchNorm2d-57          [-1, 128, 16, 16]             256
+>             ReLU-58          [-1, 128, 16, 16]               0
+>           Conv2d-59          [-1, 128, 16, 16]         147,456
+>      BatchNorm2d-60          [-1, 128, 16, 16]             256
+>             ReLU-61          [-1, 128, 16, 16]               0
+>           Conv2d-62          [-1, 512, 16, 16]          65,536
+>      BatchNorm2d-63          [-1, 512, 16, 16]           1,024
+>             ReLU-64          [-1, 512, 16, 16]               0
+>       Bottleneck-65          [-1, 512, 16, 16]               0
+>           Conv2d-66          [-1, 128, 16, 16]          65,536
+>      BatchNorm2d-67          [-1, 128, 16, 16]             256
+>             ReLU-68          [-1, 128, 16, 16]               0
+>           Conv2d-69          [-1, 128, 16, 16]         147,456
+>      BatchNorm2d-70          [-1, 128, 16, 16]             256
+>             ReLU-71          [-1, 128, 16, 16]               0
+>           Conv2d-72          [-1, 512, 16, 16]          65,536
+>      BatchNorm2d-73          [-1, 512, 16, 16]           1,024
+>             ReLU-74          [-1, 512, 16, 16]               0
+>       Bottleneck-75          [-1, 512, 16, 16]               0
+>           Conv2d-76          [-1, 128, 16, 16]          65,536
+>      BatchNorm2d-77          [-1, 128, 16, 16]             256
+>             ReLU-78          [-1, 128, 16, 16]               0
+>           Conv2d-79          [-1, 128, 16, 16]         147,456
+>      BatchNorm2d-80          [-1, 128, 16, 16]             256
+>             ReLU-81          [-1, 128, 16, 16]               0
+>           Conv2d-82          [-1, 512, 16, 16]          65,536
+>      BatchNorm2d-83          [-1, 512, 16, 16]           1,024
+>             ReLU-84          [-1, 512, 16, 16]               0
+>       Bottleneck-85          [-1, 512, 16, 16]               0
+>           Conv2d-86          [-1, 256, 16, 16]         131,072
+>      BatchNorm2d-87          [-1, 256, 16, 16]             512
+>             ReLU-88          [-1, 256, 16, 16]               0
+>           Conv2d-89            [-1, 256, 8, 8]         589,824
+>      BatchNorm2d-90            [-1, 256, 8, 8]             512
+>             ReLU-91            [-1, 256, 8, 8]               0
+>           Conv2d-92           [-1, 1024, 8, 8]         262,144
+>      BatchNorm2d-93           [-1, 1024, 8, 8]           2,048
+>           Conv2d-94           [-1, 1024, 8, 8]         524,288
+>      BatchNorm2d-95           [-1, 1024, 8, 8]           2,048
+>             ReLU-96           [-1, 1024, 8, 8]               0
+>       Bottleneck-97           [-1, 1024, 8, 8]               0
+>           Conv2d-98            [-1, 256, 8, 8]         262,144
+>      BatchNorm2d-99            [-1, 256, 8, 8]             512
+>            ReLU-100            [-1, 256, 8, 8]               0
+>          Conv2d-101            [-1, 256, 8, 8]         589,824
+>     BatchNorm2d-102            [-1, 256, 8, 8]             512
+>            ReLU-103            [-1, 256, 8, 8]               0
+>          Conv2d-104           [-1, 1024, 8, 8]         262,144
+>     BatchNorm2d-105           [-1, 1024, 8, 8]           2,048
+>            ReLU-106           [-1, 1024, 8, 8]               0
+>      Bottleneck-107           [-1, 1024, 8, 8]               0
+>          Conv2d-108            [-1, 256, 8, 8]         262,144
+>     BatchNorm2d-109            [-1, 256, 8, 8]             512
+>            ReLU-110            [-1, 256, 8, 8]               0
+>          Conv2d-111            [-1, 256, 8, 8]         589,824
+>     BatchNorm2d-112            [-1, 256, 8, 8]             512
+>            ReLU-113            [-1, 256, 8, 8]               0
+>          Conv2d-114           [-1, 1024, 8, 8]         262,144
+>     BatchNorm2d-115           [-1, 1024, 8, 8]           2,048
+>            ReLU-116           [-1, 1024, 8, 8]               0
+>      Bottleneck-117           [-1, 1024, 8, 8]               0
+>          Conv2d-118            [-1, 256, 8, 8]         262,144
+>     BatchNorm2d-119            [-1, 256, 8, 8]             512
+>            ReLU-120            [-1, 256, 8, 8]               0
+>          Conv2d-121            [-1, 256, 8, 8]         589,824
+>     BatchNorm2d-122            [-1, 256, 8, 8]             512
+>            ReLU-123            [-1, 256, 8, 8]               0
+>          Conv2d-124           [-1, 1024, 8, 8]         262,144
+>     BatchNorm2d-125           [-1, 1024, 8, 8]           2,048
+>            ReLU-126           [-1, 1024, 8, 8]               0
+>      Bottleneck-127           [-1, 1024, 8, 8]               0
+>          Conv2d-128            [-1, 256, 8, 8]         262,144
+>     BatchNorm2d-129            [-1, 256, 8, 8]             512
+>            ReLU-130            [-1, 256, 8, 8]               0
+>          Conv2d-131            [-1, 256, 8, 8]         589,824
+>     BatchNorm2d-132            [-1, 256, 8, 8]             512
+>            ReLU-133            [-1, 256, 8, 8]               0
+>          Conv2d-134           [-1, 1024, 8, 8]         262,144
+>     BatchNorm2d-135           [-1, 1024, 8, 8]           2,048
+>            ReLU-136           [-1, 1024, 8, 8]               0
+>      Bottleneck-137           [-1, 1024, 8, 8]               0
+>          Conv2d-138            [-1, 256, 8, 8]         262,144
+>     BatchNorm2d-139            [-1, 256, 8, 8]             512
+>            ReLU-140            [-1, 256, 8, 8]               0
+>          Conv2d-141            [-1, 256, 8, 8]         589,824
+>     BatchNorm2d-142            [-1, 256, 8, 8]             512
+>            ReLU-143            [-1, 256, 8, 8]               0
+>          Conv2d-144           [-1, 1024, 8, 8]         262,144
+>     BatchNorm2d-145           [-1, 1024, 8, 8]           2,048
+>            ReLU-146           [-1, 1024, 8, 8]               0
+>      Bottleneck-147           [-1, 1024, 8, 8]               0
+>          Conv2d-148            [-1, 512, 8, 8]         524,288
+>     BatchNorm2d-149            [-1, 512, 8, 8]           1,024
+>            ReLU-150            [-1, 512, 8, 8]               0
+>          Conv2d-151            [-1, 512, 4, 4]       2,359,296
+>     BatchNorm2d-152            [-1, 512, 4, 4]           1,024
+>            ReLU-153            [-1, 512, 4, 4]               0
+>          Conv2d-154           [-1, 2048, 4, 4]       1,048,576
+>     BatchNorm2d-155           [-1, 2048, 4, 4]           4,096
+>          Conv2d-156           [-1, 2048, 4, 4]       2,097,152
+>     BatchNorm2d-157           [-1, 2048, 4, 4]           4,096
+>            ReLU-158           [-1, 2048, 4, 4]               0
+>      Bottleneck-159           [-1, 2048, 4, 4]               0
+>          Conv2d-160            [-1, 512, 4, 4]       1,048,576
+>     BatchNorm2d-161            [-1, 512, 4, 4]           1,024
+>            ReLU-162            [-1, 512, 4, 4]               0
+>          Conv2d-163            [-1, 512, 4, 4]       2,359,296
+>     BatchNorm2d-164            [-1, 512, 4, 4]           1,024
+>            ReLU-165            [-1, 512, 4, 4]               0
+>          Conv2d-166           [-1, 2048, 4, 4]       1,048,576
+>     BatchNorm2d-167           [-1, 2048, 4, 4]           4,096
+>            ReLU-168           [-1, 2048, 4, 4]               0
+>      Bottleneck-169           [-1, 2048, 4, 4]               0
+>          Conv2d-170            [-1, 512, 4, 4]       1,048,576
+>     BatchNorm2d-171            [-1, 512, 4, 4]           1,024
+>            ReLU-172            [-1, 512, 4, 4]               0
+>          Conv2d-173            [-1, 512, 4, 4]       2,359,296
+>     BatchNorm2d-174            [-1, 512, 4, 4]           1,024
+>            ReLU-175            [-1, 512, 4, 4]               0
+>          Conv2d-176           [-1, 2048, 4, 4]       1,048,576
+>     BatchNorm2d-177           [-1, 2048, 4, 4]           4,096
+>            ReLU-178           [-1, 2048, 4, 4]               0
+>      Bottleneck-179           [-1, 2048, 4, 4]               0
+> AdaptiveAvgPool2d-180           [-1, 2048, 1, 1]               0
+>        Identity-181                 [-1, 2048]               0
+>          ResNet-182                 [-1, 2048]               0
+>          Linear-183             [-1, 384, 512]       1,049,088
+>            ReLU-184             [-1, 384, 512]               0
+>          Linear-185             [-1, 384, 256]         131,328
+>MultiPlane_MultiSlice_Extract_Project-186             [-1, 384, 256]               0
+>  EmbeddingLayer-187             [-1, 388, 256]               0
+>       LayerNorm-188             [-1, 388, 256]             512
+>          Linear-189             [-1, 388, 768]         197,376
+>         Dropout-190          [-1, 8, 388, 388]               0
+>          Linear-191             [-1, 388, 256]          65,792
+>MultiHeadAttention-192             [-1, 388, 256]               0
+>         Dropout-193             [-1, 388, 256]               0
+>     ResidualAdd-194             [-1, 388, 256]               0
+>       LayerNorm-195             [-1, 388, 256]             512
+>          Linear-196             [-1, 388, 512]         131,584
+>            GELU-197             [-1, 388, 512]               0
+>         Dropout-198             [-1, 388, 512]               0
+>          Linear-199             [-1, 388, 256]         131,328
+>         Dropout-200             [-1, 388, 256]               0
+>     ResidualAdd-201             [-1, 388, 256]               0
+>       LayerNorm-202             [-1, 388, 256]             512
+>          Linear-203             [-1, 388, 768]         197,376
+>         Dropout-204          [-1, 8, 388, 388]               0
+>          Linear-205             [-1, 388, 256]          65,792
+>MultiHeadAttention-206             [-1, 388, 256]               0
+>         Dropout-207             [-1, 388, 256]               0
+>     ResidualAdd-208             [-1, 388, 256]               0
+>       LayerNorm-209             [-1, 388, 256]             512
+>          Linear-210             [-1, 388, 512]         131,584
+>            GELU-211             [-1, 388, 512]               0
+>         Dropout-212             [-1, 388, 512]               0
+>          Linear-213             [-1, 388, 256]         131,328
+>         Dropout-214             [-1, 388, 256]               0
+>     ResidualAdd-215             [-1, 388, 256]               0
+>       LayerNorm-216             [-1, 388, 256]             512
+>          Linear-217             [-1, 388, 768]         197,376
+>         Dropout-218          [-1, 8, 388, 388]               0
+>          Linear-219             [-1, 388, 256]          65,792
+>MultiHeadAttention-220             [-1, 388, 256]               0
+>         Dropout-221             [-1, 388, 256]               0
+>     ResidualAdd-222             [-1, 388, 256]               0
+>       LayerNorm-223             [-1, 388, 256]             512
+>          Linear-224             [-1, 388, 512]         131,584
+>            GELU-225             [-1, 388, 512]               0
+>         Dropout-226             [-1, 388, 512]               0
+>          Linear-227             [-1, 388, 256]         131,328
+>         Dropout-228             [-1, 388, 256]               0
+>     ResidualAdd-229             [-1, 388, 256]               0
+>       LayerNorm-230             [-1, 388, 256]             512
+>          Linear-231             [-1, 388, 768]         197,376
+>         Dropout-232          [-1, 8, 388, 388]               0
+>          Linear-233             [-1, 388, 256]          65,792
+>MultiHeadAttention-234             [-1, 388, 256]               0
+>         Dropout-235             [-1, 388, 256]               0
+>     ResidualAdd-236             [-1, 388, 256]               0
+>       LayerNorm-237             [-1, 388, 256]             512
+>          Linear-238             [-1, 388, 512]         131,584
+>            GELU-239             [-1, 388, 512]               0
+>         Dropout-240             [-1, 388, 512]               0
+>          Linear-241             [-1, 388, 256]         131,328
+>         Dropout-242             [-1, 388, 256]               0
+>     ResidualAdd-243             [-1, 388, 256]               0
+>       LayerNorm-244             [-1, 388, 256]             512
+>          Linear-245             [-1, 388, 768]         197,376
+>         Dropout-246          [-1, 8, 388, 388]               0
+>          Linear-247             [-1, 388, 256]          65,792
+>MultiHeadAttention-248             [-1, 388, 256]               0
+>         Dropout-249             [-1, 388, 256]               0
+>     ResidualAdd-250             [-1, 388, 256]               0
+>       LayerNorm-251             [-1, 388, 256]             512
+>          Linear-252             [-1, 388, 512]         131,584
+>            GELU-253             [-1, 388, 512]               0
+>         Dropout-254             [-1, 388, 512]               0
+>          Linear-255             [-1, 388, 256]         131,328
+>         Dropout-256             [-1, 388, 256]               0
+>     ResidualAdd-257             [-1, 388, 256]               0
+>       LayerNorm-258             [-1, 388, 256]             512
+>          Linear-259             [-1, 388, 768]         197,376
+>         Dropout-260          [-1, 8, 388, 388]               0
+>          Linear-261             [-1, 388, 256]          65,792
+>MultiHeadAttention-262             [-1, 388, 256]               0
+>         Dropout-263             [-1, 388, 256]               0
+>     ResidualAdd-264             [-1, 388, 256]               0
+>       LayerNorm-265             [-1, 388, 256]             512
+>          Linear-266             [-1, 388, 512]         131,584
+>            GELU-267             [-1, 388, 512]               0
+>         Dropout-268             [-1, 388, 512]               0
+>          Linear-269             [-1, 388, 256]         131,328
+>         Dropout-270             [-1, 388, 256]               0
+>     ResidualAdd-271             [-1, 388, 256]               0
+>       LayerNorm-272             [-1, 388, 256]             512
+>          Linear-273             [-1, 388, 768]         197,376
+>         Dropout-274          [-1, 8, 388, 388]               0
+>          Linear-275             [-1, 388, 256]          65,792
+>MultiHeadAttention-276             [-1, 388, 256]               0
+>         Dropout-277             [-1, 388, 256]               0
+>     ResidualAdd-278             [-1, 388, 256]               0
+>       LayerNorm-279             [-1, 388, 256]             512
+>          Linear-280             [-1, 388, 512]         131,584
+>            GELU-281             [-1, 388, 512]               0
+>         Dropout-282             [-1, 388, 512]               0
+>          Linear-283             [-1, 388, 256]         131,328
+>         Dropout-284             [-1, 388, 256]               0
+>     ResidualAdd-285             [-1, 388, 256]               0
+>       LayerNorm-286             [-1, 388, 256]             512
+>          Linear-287             [-1, 388, 768]         197,376
+>         Dropout-288          [-1, 8, 388, 388]               0
+>          Linear-289             [-1, 388, 256]          65,792
+>MultiHeadAttention-290             [-1, 388, 256]               0
+>         Dropout-291             [-1, 388, 256]               0
+>     ResidualAdd-292             [-1, 388, 256]               0
+>       LayerNorm-293             [-1, 388, 256]             512
+>          Linear-294             [-1, 388, 512]         131,584
+>            GELU-295             [-1, 388, 512]               0
+>         Dropout-296             [-1, 388, 512]               0
+>          Linear-297             [-1, 388, 256]         131,328
+>         Dropout-298             [-1, 388, 256]               0
+>     ResidualAdd-299             [-1, 388, 256]               0
+>          Linear-300                    [-1, 2]             514
+>ClassificationHead-301                    [-1, 2]               0
 >================================================================
->Total params: 5,548,386
->Trainable params: 5,548,386
+>Total params: 29,128,930
+>Trainable params: 29,128,930
 >Non-trainable params: 0
 >----------------------------------------------------------------
 >Input size (MB): 8.00
->Forward/backward pass size (MB): 3790.18
->Params size (MB): 21.17
->Estimated Total Size (MB): 3819.34
+>Forward/backward pass size (MB): 3865.50
+>Params size (MB): 111.12
+>Estimated Total Size (MB): 3984.62
 >----------------------------------------------------------------
 
 
-We can see that the number of parameters that I got here is different from the ones that was mentioned in the paper. I have got **5.5M trainable parameters** but in the paper the authors said they have received **29.12M trainable parameters**
+We can see that the number of parameters that I got here is same as it was mentioned in the paper. I have got **29.12M trainable parameters** with torch summary. 
 
-When I change the **Embedding dimension d = 768 instead of 256**, keeping the **forward expansion in transformer encoder as 1**, and changing the hidden size in the **non linear projection block from (512, 256) to (512, 768).** I'm getting nearly **28.91M trainable parameters** with torch summary 
+I have diligently followed each step in implementing M3T with utmost care and attention to detail.
 
-# Conclusions
-I have diligently followed each step in implementing M3T with utmost care and attention to detail. Despite reaching out to the authors for clarification, I regrettably have not received any responses. 
-
-Therefore, I kindly request the valuable input and expertise of the scientific community to review my work and identify any potential errors or areas for improvement in my implementation. Any constructive feedback provided will be immensely appreciated, as it will aid in refining my skills and ensuring the accuracy and robustness of my research. Thank you in advance for your support and valuable insights.
+Thank you.
 
 Vishnu 
 
