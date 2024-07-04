@@ -173,7 +173,7 @@ Now after extracting [Ecor, Esag and Eax] = E, **The authors calculated multi-pl
 >
 >         # 2D CNN block
 >         # To use pre-trained ResNet50 network on input tensor of shape (), we must reshape the tensor
->         S = S.view(-1,C,H,W).contiguous()                                        # Now S will have a shape of (batch_size * 3N, channels, legnth, length)
+>         S = S.view(-1,C,H,W).contiguous()                                        # Now S will have a shape of (batch_size * 3N, channels, length, length)
 >
 >         # Now lets extract the features from the average pooling layer of the resnet model
 >         # D2d : R(3N×C3d×L×L) → R(3N×C2d)    (C2d is out channel size of 2D CNN)
