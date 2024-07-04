@@ -96,7 +96,7 @@ operator consists of coronal features extractor Ecor : R^C3d×L×W×H → R^C3d�
   </tr>
 </table>
 
-However, the authors did not mention what method they have used to achieve the above. This can be achieved by using splitting across the dimension and concatenation:
+However, the authors did not mention what method they have used to achieve the above. This can be achieved by splitting and concatenating across the dimension or clone operation since height, width and depth are of same dimension. I'm not choosing the latter as it doesnot explain the intuition of extracting the features in different planes, but feel free to use clone operation in practice if splitting and concatenating along the same dimension may seem redundant:
 >```
 >class MultiPlane_MultiSlice_Extract_Project(nn.Module):
 >     '''
